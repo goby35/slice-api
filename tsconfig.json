@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "target": "ESNext",
-    "module": "NodeNext",
+    "moduleResolution": "bundler",
+    "module": "ESNext",
+    // "module": "NodeNext",
     "strict": true,
     "skipLibCheck": true,
     "types": ["node"],
