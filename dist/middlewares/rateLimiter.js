@@ -1,4 +1,4 @@
-import sha256 from "../utils/sha256.js";
+import sha256 from "../utils/sha256";
 const getIp = (req) => {
     const ips = (req.headers.get("cf-connecting-ip") ||
         req.headers.get("x-real-ip") ||
