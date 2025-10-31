@@ -11,5 +11,17 @@
     "jsxImportSource": "hono/jsx",
     "outDir": "./dist"
   },
-  "exclude": ["node_modules"]
-}
+  "exclude": ["node_modules"],
+  "jsxImportSource": "hono/jsx", // (Giữ lại nếu bạn dùng Hono[JSX])
+
+      /* --- 1. GIẢI QUYẾT VẤN ĐỀ BỎ ĐUÔI .js --- */
+      // Đảm bảo Hono API build ra code Node.js hiện đại
+      "module": "NodeNext",
+      "moduleResolution": "NodeNext",
+
+      /* --- 2. GIẢI QUYẾT ĐƯỜNG DẪN @/ CHUYÊN NGHIỆP --- */
+      "baseUrl": ".",
+      "paths": {
+        "@/*": ["src/*"] // Ánh xạ @/ đến thư mục src/
+      }
+    }
