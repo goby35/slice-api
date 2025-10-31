@@ -1,6 +1,6 @@
 // import { LENS_API_URL } from "@slice/data/constants";
 import "dotenv/config";
-import { withPrefix } from '../logger.js';
+import { withPrefix } from '../logger';
 import { createRemoteJWKSet, jwtVerify } from "jose";
 // Trong authMiddleware.ts (phiên bản mới)
 const LENS_API_URL = process.env.LENS_API_URL; // Đọc từ Vercel
