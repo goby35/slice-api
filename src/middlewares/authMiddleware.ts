@@ -1,6 +1,6 @@
 // import { LENS_API_URL } from "@slice/data/constants";
 import "dotenv/config";
-import { withPrefix } from '../logger';
+import { withPrefix } from '../logger.js';
 import type { Context, Next } from "hono";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 

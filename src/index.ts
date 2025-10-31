@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import authMiddleware from './middlewares/authMiddleware';
+import authMiddleware from './middlewares/authMiddleware.js';
 
 const app = new Hono()
 
@@ -36,16 +36,25 @@ const forwardToHey = async (c: any, upstreamPath: string) => {
     const query = rawUrl.split('?')[1] || '';
     const url = query ? `${HEY_API_ORIGIN}${upstreamPath}?${query}` : `${HEY_API_ORIGIN}${upstreamPath}`;
 
-    // Copy all incoming headers except host
+    // Copy all incoming headers except host using Hono's headers iterator
     const headers: Record<string, string> = {};
-    const rawHeaders = (c.req.raw && (c.req.raw.headers as any)) || {};
-    for (const [k, v] of Object.entries(rawHeaders)) {
-      if (!k) continue;
-      if (k.toLowerCase() === 'host') continue;
-      if (Array.isArray(v)) {
-        headers[k] = v.join(',');
-      } else if (v !== undefined && v !== null) {
-        headers[k] = String(v);
+    try {
+      for (const [k, v] of c.req.headers) {
+        if (!k) continue;
+        if (k.toLowerCase() === 'host') continue;
+        headers[k] = v as string;
+      }
+    } catch (e) {
+      // Fallback: try c.req.raw.headers if headers isn't iterable in this runtime
+      const rawHeaders = (c.req.raw && (c.req.raw.headers as any)) || {};
+      for (const [k, v] of Object.entries(rawHeaders)) {
+        if (!k) continue;
+        if (k.toLowerCase() === 'host') continue;
+        if (Array.isArray(v)) {
+          headers[k] = v.join(',');
+        } else if (v !== undefined && v !== null) {
+          headers[k] = String(v);
+        }
       }
     }
 
@@ -72,18 +81,19 @@ const forwardToHey = async (c: any, upstreamPath: string) => {
     const respBuffer = Buffer.from(respArrayBuf);
     const contentType = res.headers.get('content-type') || 'application/octet-stream';
 
-    // If JSON, attempt to return JSON; otherwise return raw buffer
+    // If JSON, attempt to return JSON; otherwise return raw Uint8Array
+    const respUint8 = new Uint8Array(respArrayBuf);
     if (contentType.includes('application/json')) {
       try {
-        const json = JSON.parse(respBuffer.toString('utf8'));
+        const json = JSON.parse(new TextDecoder('utf-8').decode(respUint8));
         return c.json(json, res.status);
       } catch (e) {
         // fallthrough to text
-        return c.body(respBuffer.toString('utf8'), res.status, { 'Content-Type': contentType });
+        return c.body(new TextDecoder('utf-8').decode(respUint8), res.status, { 'Content-Type': contentType });
       }
     }
 
-    return c.body(respBuffer, res.status, { 'Content-Type': contentType });
+    return c.body(respUint8, res.status, { 'Content-Type': contentType });
   } catch (err: any) {
     if (err && err.name === 'AbortError') {
       return c.body('Upstream timeout', 504);

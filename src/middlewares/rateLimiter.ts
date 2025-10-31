@@ -1,5 +1,5 @@
 import type { Context, Next } from 'hono';
-import sha256 from "../utils/sha256";
+import sha256 from "../utils/sha256.js";
 
 /**
  * Simple in-memory rate limiter suitable for local/dev use.
