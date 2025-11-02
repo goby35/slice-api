@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import authMiddleware from './middlewares/authMiddleware';
+import authMiddleware from './middlewares/authMiddleware.js';
 
 const app = new Hono()
 
