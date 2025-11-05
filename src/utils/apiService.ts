@@ -76,8 +76,13 @@ export default class ApiService {
   }
 
   async getUser(profileId: string) {
-    const res = await fetch(`${this.baseUrl}/users/${encodeURIComponent(profileId)}`, { headers: this.headers() });
-    return this.handleResponse(res);
+    try {
+        const res = await fetch(`${this.baseUrl}/users/${encodeURIComponent(profileId)}`, { headers: this.headers() });
+        return this.handleResponse(res);
+    } catch (error) {
+        console.error('Error fetching user:', error);
+        throw new ApiError(500, 'Internal Server Error');
+    }
   }
 
   async updateUser(profileId: string, payload: Partial<UserPayload>) {
@@ -102,7 +107,7 @@ export default class ApiService {
   }
 
   async createTask(payload: TaskPayload) {
-    const res = await fetch(`${this.baseUrl}/api/v1/tasks`, { method: 'POST', headers: this.headers(), body: JSON.stringify(payload) });
+    const res = await fetch(`${this.baseUrl}/tasks`, { method: 'POST', headers: this.headers(), body: JSON.stringify(payload) });
     return this.handleResponse(res);
   }
 

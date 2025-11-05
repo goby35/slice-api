@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../db/index.js";
 import { tasks } from "../db/schema.js";
+import authMiddleware from "../middlewares/authMiddleware.js";
 
 // Zod Schemas
 const taskStatusSchema = z.enum([
@@ -15,7 +16,7 @@ const taskStatusSchema = z.enum([
 ]);
 
 const createTaskSchema = z.object({
-  employerProfileId: z.string(),
+  // employerProfileId is intentionally NOT provided by client; server will derive it from JWT (act.sub || sub)
   title: z.string().min(3, "Title must be at least 3 characters long"),
   objective: z
     .string()
@@ -47,15 +48,28 @@ tasksRouter.get("/", async (c) => {
 });
 
 // POST /tasks - Tạo một task mới
-tasksRouter.post("/", zValidator("json", createTaskSchema), async (c) => {
-  const data = (c.req as any).valid("json");
-  const values = {
-    ...data,
-    deadline: data.deadline ? new Date(data.deadline) : undefined
-  };
-  const [newTask] = await db.insert(tasks).values(values).returning();
-  return c.json(newTask, 201);
-});
+tasksRouter.post(
+  "/",
+  authMiddleware,
+  zValidator("json", createTaskSchema),
+  async (c) => {
+    const data = (c.req as any).valid("json");
+
+    // get verified user payload set by authMiddleware
+    const userPayload = (c as any).get("user") as Record<string, any> | undefined;
+    const profileIdFromToken = userPayload?.act?.sub || userPayload?.sub;
+    if (!profileIdFromToken) return c.json({ error: "Unauthorized" }, 401);
+
+    const values = {
+      ...data,
+      employerProfileId: profileIdFromToken,
+      deadline: data.deadline ? new Date(data.deadline) : undefined
+    } as any;
+
+    const [newTask] = await db.insert(tasks).values(values).returning();
+    return c.json(newTask, 201);
+  }
+);
 
 // GET /tasks/:id - Lấy thông tin chi tiết một task theo ID
 tasksRouter.get("/:id", async (c) => {

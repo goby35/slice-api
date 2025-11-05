@@ -27,8 +27,13 @@ const usersRouter = new Hono();
 
 // GET /users - Lấy danh sách tất cả user
 usersRouter.get("/", async (c) => {
-  const allUsers = await db.select().from(users);
-  return c.json(allUsers);
+  try {
+    const allUsers = await db.select().from(users);
+    return c.json(allUsers);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    return c.json({ error: 'Internal Server Error', details: error }, 500);
+  }
 });
 
 // POST /users - Tạo user mới

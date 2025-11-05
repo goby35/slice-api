@@ -21,7 +21,7 @@ var allowedOrigins = [
 ];
 var cors = corsMiddleware({
   allowHeaders: ["Content-Type", "X-Access-Token"],
-  allowMethods: ["GET", "POST", "OPTIONS"],
+  allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   credentials: true,
   origin: allowedOrigins
 });
@@ -563,7 +563,7 @@ app.route("/tasks", tasks_default);
 app.route("/users", users_default);
 app.route("/applications", taskApplications_default);
 app.get("/", (c) => c.text("slice-api running"));
-app.post("/api/v1/tasks", authMiddleware_default, async (c) => {
+app.post("/tasks", authMiddleware_default, async (c) => {
   const userPayload = c.get("user");
   const profileIdFromToken = userPayload?.act?.sub || userPayload?.sub;
   if (!profileIdFromToken) return c.text("Unauthorized", 401);

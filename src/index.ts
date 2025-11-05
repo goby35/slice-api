@@ -101,7 +101,7 @@ app.route('/applications', taskApplicationsRouter)
 app.get('/', (c) => c.text('slice-api running'))
 
 // API: create task (protected)
-app.post('/api/v1/tasks', authMiddleware, async (c) => {
+app.post('/tasks', authMiddleware, async (c) => {
   // Get verified user payload from authMiddleware
   const userPayload = (c as any).get('user') as Record<string, any> | undefined
   const profileIdFromToken = userPayload?.act?.sub || userPayload?.sub
