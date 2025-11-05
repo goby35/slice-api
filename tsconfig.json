@@ -1,31 +1,18 @@
 {
   "compilerOptions": {
     "target": "ESNext",
-    "moduleResolution": "bundler",
-    "module": "ESNext",
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
-    },
-    // "module": "NodeNext",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "strict": true,
     "skipLibCheck": true,
     "types": ["node"],
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
     "outDir": "./dist"
   },
-  "exclude": ["node_modules"],
-  "jsxImportSource": "hono/jsx", // (Giữ lại nếu bạn dùng Hono[JSX])
-
-      /* --- 1. GIẢI QUYẾT VẤN ĐỀ BỎ ĐUÔI .js --- */
-      // Đảm bảo Hono API build ra code Node.js hiện đại
-  "module": "NodeNext",
-  "moduleResolution": "NodeNext",
-
-      /* --- 2. GIẢI QUYẾT ĐƯỜNG DẪN @/ CHUYÊN NGHIỆP --- */
-  "baseUrl": ".",
-  "paths": {
-  "@/*": ["src/*"] // Ánh xạ @/ đến thư mục src/
-    }
+  "exclude": ["node_modules", "dist"]
 }

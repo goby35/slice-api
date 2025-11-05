@@ -1,133 +1,160 @@
 import { Hono } from 'hono'
-import { cors } from 'hono/cors'
-import authMiddleware from './middlewares/authMiddleware.js';
+import type { Context } from 'hono'
+import cors from './middlewares/cors.js'
+import authMiddleware from './middlewares/authMiddleware.js'
+import rateLimiter from './middlewares/rateLimiter.js'
+import authContext from './middlewares/authContext.js'
+import tasksRouter from './routes/tasks.js'
+import usersRouter from './routes/users.js'
+import taskApplicationsRouter from './routes/taskApplications.js'
+import { db } from './db/index.js'
+import { tasks } from './db/schema.js'
 
 const app = new Hono()
 
-// CHO PHÉP FRONTEND "HEY" GỌI
-app.use('*', cors({
-  origin: [
-    'http://localhost:3000', // Cho máy dev của bạn
-    'https://app.hey.xyz' // Domain của "Hey" (thay thế nếu cần)
-  ],
-  allowHeaders: ['X-Access-Token', 'Content-Type'],
-  allowMethods: ['POST', 'GET', 'OPTIONS', 'PUT', 'DELETE'],
-}))
 
-const welcomeStrings = [
-  'Hello Hono!',
-  'To learn more about Hono on Vercel, visit https://vercel.com/docs/frameworks/backend/hono'
-]
 
-app.get('/', (c) => {
-  return c.text(welcomeStrings.join('\n\n'))
-})
+// Global middleware: CORS then authContext
+app.use('*', cors)
+app.use('*', authContext)
 
-// Shim / Proxy for legacy Hey endpoints -> forward to https://api.hey.xyz
-const HEY_API_ORIGIN = 'https://api.hey.xyz';
+const REAL_HEY_API_URL = (process.env.REAL_HEY_API_URL || process.env.HEY_API_URL || 'https://api.hey.xyz').replace(/\/$/, '')
+const REAL_LENS_API_URL = (process.env.REAL_LENS_API_URL || process.env.LENS_API_URL || '').replace(/\/$/, '')
 
-// Helper to forward request to Hey upstream
-const forwardToHey = async (c: any, upstreamPath: string) => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 50000);
-
+const forward = async (c: Context, target: string) => {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 50000)
   try {
-    const rawUrl: string = (c.req.raw && c.req.raw.url) ? c.req.raw.url : c.req.url;
-    const query = rawUrl.split('?')[1] || '';
-    const url = query ? `${HEY_API_ORIGIN}${upstreamPath}?${query}` : `${HEY_API_ORIGIN}${upstreamPath}`;
-
-    // Copy all incoming headers except host using Hono's headers iterator
-    const headers: Record<string, string> = {};
+    // build headers (exclude host)
+    const headers: Record<string, string> = {}
+    const rawHeaders = (c.req.raw && (c.req.raw.headers as any)) || {}
     try {
-      for (const [k, v] of c.req.headers) {
-        if (!k) continue;
-        if (k.toLowerCase() === 'host') continue;
-        headers[k] = v as string;
-      }
-    } catch (e) {
-      // Fallback: try c.req.raw.headers if headers isn't iterable in this runtime
-      const rawHeaders = (c.req.raw && (c.req.raw.headers as any)) || {};
-      for (const [k, v] of Object.entries(rawHeaders)) {
-        if (!k) continue;
-        if (k.toLowerCase() === 'host') continue;
-        if (Array.isArray(v)) {
-          headers[k] = v.join(',');
-        } else if (v !== undefined && v !== null) {
-          headers[k] = String(v);
+      // Headers can be a Headers instance
+      if (typeof rawHeaders.forEach === 'function') {
+        rawHeaders.for1Each((v: any, k: string) => { if (k.toLowerCase() !== 'host') headers[k] = String(v) })
+      } else {
+        for (const [k, v] of Object.entries(rawHeaders)) {
+          if (k.toLowerCase() === 'host') continue
+          if (Array.isArray(v)) headers[k] = v.join(',')
+          else if (v != null) headers[k] = String(v)
         }
       }
+    } catch {
+      // best-effort fallback: copy common headers
+      const maybeAuth = c.req.header('authorization') || c.req.header('Authorization')
+      if (maybeAuth) headers['authorization'] = maybeAuth
+      const maybeX = c.req.header('x-access-token') || c.req.header('X-Access-Token')
+      if (maybeX) headers['x-access-token'] = maybeX
+      const ct = c.req.header('content-type')
+      if (ct) headers['content-type'] = ct
     }
 
-    // Ensure content-type present when body exists
-    const method = c.req.method.toUpperCase();
-    let body: undefined | ArrayBuffer | Uint8Array;
+    const method = c.req.method.toUpperCase()
+    let body: BodyInit | undefined
     if (!['GET', 'HEAD'].includes(method)) {
-      const arr = await c.req.arrayBuffer();
-      // prefer Uint8Array for fetch BodyInit compatibility
-      body = new Uint8Array(arr);
-      if (!headers['content-type'] && !headers['Content-Type']) {
-        headers['content-type'] = 'application/octet-stream';
-      }
+      const arr = await c.req.arrayBuffer()
+      body = new Uint8Array(arr)
+      if (!headers['content-type'] && !headers['Content-Type']) headers['content-type'] = 'application/json'
     }
 
-    const res = await fetch(url, {
-      method,
-      headers,
-      body: (body as any) ?? undefined,
-      signal: controller.signal
-    });
+    const res = await fetch(target, { method, headers, body, signal: controller.signal })
+    const status = res.status
+    const contentType = res.headers.get('content-type') || ''
+    const arrBuf = await res.arrayBuffer()
+    const uint8 = new Uint8Array(arrBuf)
 
-    const respArrayBuf = await res.arrayBuffer();
-    const respBuffer = Buffer.from(respArrayBuf);
-    const contentType = res.headers.get('content-type') || 'application/octet-stream';
-
-    // If JSON, attempt to return JSON; otherwise return raw Uint8Array
-    const respUint8 = new Uint8Array(respArrayBuf);
     if (contentType.includes('application/json')) {
       try {
-        const json = JSON.parse(new TextDecoder('utf-8').decode(respUint8));
-        return c.json(json, res.status);
+        const jsonText = new TextDecoder().decode(uint8)
+        return new Response(jsonText, { status, headers: { 'Content-Type': 'application/json' } })
       } catch (e) {
-        // fallthrough to text
-        return c.body(new TextDecoder('utf-8').decode(respUint8), res.status, { 'Content-Type': contentType });
+        const txt = new TextDecoder().decode(uint8)
+        return new Response(txt, { status, headers: { 'Content-Type': contentType } })
       }
     }
 
-    return c.body(respUint8, res.status, { 'Content-Type': contentType });
+    return new Response(uint8, { status, headers: { 'Content-Type': contentType } })
   } catch (err: any) {
-    if (err && err.name === 'AbortError') {
-      return c.body('Upstream timeout', 504);
-    }
-    return c.body('Upstream error', 502);
+    if (err && err.name === 'AbortError') return c.text('Upstream timeout', 504)
+    return c.text('Upstream error', 502)
   } finally {
-    clearTimeout(timeoutId);
+    clearTimeout(timeout)
   }
-};
+}
 
-// Forward GET /oembed/get?url=...
+// Public REST shim
+app.get('/metadata/sts', async (c) => forward(c, `${REAL_HEY_API_URL}/metadata/sts`))
 app.get('/oembed/get', async (c) => {
-  // build upstream path exactly
-  return forwardToHey(c, '/oembed/get');
-});
+  const qs = c.req.raw.url?.split('?')[1] || ''
+  const url = qs ? `${REAL_HEY_API_URL}/oembed/get?${qs}` : `${REAL_HEY_API_URL}/oembed/get`
+  return forward(c, url)
+})
+app.get('/og/*', async (c) => forward(c, `${REAL_HEY_API_URL}${c.req.path}`))
 
-// Forward GET /metadata/sts
-app.get('/metadata/sts', async (c) => {
-  return forwardToHey(c, '/metadata/sts');
-});
+// Mount local routers for development/testing
+// These routers expose the tasks, users and applications endpoints defined in src/routes
+app.route('/tasks', tasksRouter)
+app.route('/users', usersRouter)
+app.route('/applications', taskApplicationsRouter)
 
-// Forward POST /pageview
-// Require auth for write routes (pageview/posts) — copy Lens/Hey JWT check
-app.use('/pageview', authMiddleware);
-app.use('/posts', authMiddleware);
+// Simple root to verify server is running
+app.get('/', (c) => c.text('slice-api running'))
 
-// Forward POST /pageview
-app.post('/pageview', async (c) => {
-  return forwardToHey(c, '/pageview');
-});
+// API: create task (protected)
+app.post('/api/v1/tasks', authMiddleware, async (c) => {
+  // Get verified user payload from authMiddleware
+  const userPayload = (c as any).get('user') as Record<string, any> | undefined
+  const profileIdFromToken = userPayload?.act?.sub || userPayload?.sub
+  if (!profileIdFromToken) return c.text('Unauthorized', 401)
 
-// Forward POST /posts
-app.post('/posts', async (c) => {
-  return forwardToHey(c, '/posts');
-});
+  // Parse request body
+  let body: any
+  try {
+    body = await c.req.json()
+  } catch (e) {
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
 
+  // Basic validation (required fields)
+  const { title, objective, deliverables, acceptanceCriteria, rewardPoints, deadline } = body || {}
+  if (!title || !objective || !deliverables || !acceptanceCriteria || typeof rewardPoints !== 'number') {
+    return c.json({ error: 'Missing or invalid required fields' }, 400)
+  }
+
+  // Build values and ignore any client-sent employerProfileId
+  const values: Record<string, any> = {
+    employerProfileId: profileIdFromToken,
+    title,
+    objective,
+    deliverables,
+    acceptanceCriteria,
+    rewardPoints
+  }
+
+  if (deadline) {
+    try {
+      values.deadline = new Date(deadline)
+    } catch {
+      // ignore invalid date and let DB validation handle if necessary
+    }
+  }
+
+  try {
+  const [newTask] = await db.insert(tasks).values(values as any).returning()
+    return c.json(newTask, 201)
+  } catch (err: any) {
+    // Drizzle / DB error
+    console.error('Failed to create task', err)
+    return c.json({ error: 'Failed to create task' }, 500)
+  }
+})
+
+// Protected REST shim routes (rate limiter then auth)
+app.use('/pageview', rateLimiter({ requests: 60 }))
+app.use('/pageview', authMiddleware)
+app.post('/pageview', async (c) => forward(c, `${REAL_HEY_API_URL}/pageview`))
+
+app.use('/posts', rateLimiter({ requests: 60 }))
+app.use('/posts', authMiddleware)
+app.post('/posts', async (c) => forward(c, `${REAL_HEY_API_URL}/posts`))
 export default app

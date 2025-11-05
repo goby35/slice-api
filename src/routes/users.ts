@@ -1,0 +1,131 @@
+import { zValidator } from "@hono/zod-validator";
+import { eq, type SQL, sql } from "drizzle-orm";
+import { Hono } from "hono";
+import { z } from "zod";
+import { db } from "../db/index.js";
+import { users } from "../db/schema.js";
+
+// Zod Schemas
+const createUserSchema = z.object({
+  profileId: z.string().min(1, "Profile ID is required"),
+  username: z.string().optional(),
+  professionalRoles: z.array(z.string()).optional()
+});
+
+const updateUserSchema = createUserSchema.partial().extend({
+  reputationScore: z.number().int().optional(),
+  rewardPoints: z.number().int().optional(),
+  level: z.number().int().optional()
+});
+
+const adjustPointsSchema = z.object({
+  rewardPoints: z.number().int().optional(),
+  reputationScore: z.number().int().optional()
+});
+
+const usersRouter = new Hono();
+
+// GET /users - Lấy danh sách tất cả user
+usersRouter.get("/", async (c) => {
+  const allUsers = await db.select().from(users);
+  return c.json(allUsers);
+});
+
+// POST /users - Tạo user mới
+usersRouter.post("/", zValidator("json", createUserSchema), async (c) => {
+  const data = (c.req as any).valid("json");
+  const [newUser] = await db.insert(users).values(data).returning();
+  return c.json(newUser, 201);
+});
+
+// GET /users/:profileId - Lấy user theo profileId
+usersRouter.get("/:profileId", async (c) => {
+  const profileId = c.req.param("profileId");
+  const user = await db
+    .select()
+    .from(users)
+    .where(eq(users.profileId, profileId));
+  if (user.length === 0) {
+    return c.json({ error: "User not found" }, 404);
+  }
+  return c.json(user[0]);
+});
+
+// PUT /users/:profileId - Cập nhật user
+usersRouter.put(
+  "/:profileId",
+  zValidator("json", updateUserSchema),
+  async (c) => {
+    const profileId = c.req.param("profileId");
+    const data = (c.req as any).valid("json");
+
+    const [updatedUser] = await db
+      .update(users)
+      .set(data)
+      .where(eq(users.profileId, profileId))
+      .returning();
+
+    if (!updatedUser) {
+      return c.json({ error: "User not found" }, 404);
+    }
+
+    return c.json(updatedUser);
+  }
+);
+
+// DELETE /users/:profileId - Xóa user
+usersRouter.delete("/:profileId", async (c) => {
+  const profileId = c.req.param("profileId");
+
+  const [deletedUser] = await db
+    .delete(users)
+    .where(eq(users.profileId, profileId))
+    .returning();
+
+  if (!deletedUser) {
+    return c.json({ error: "User not found" }, 404);
+  }
+
+  return c.json({ message: "User deleted successfully" });
+});
+
+// POST /users/:profileId/adjust-points - Cập nhật điểm an toàn
+usersRouter.post(
+  "/:profileId/adjust-points",
+  zValidator("json", adjustPointsSchema),
+  async (c) => {
+    const profileId = c.req.param("profileId");
+  const { rewardPoints, reputationScore } = (c.req as any).valid("json");
+
+    if (rewardPoints === undefined && reputationScore === undefined) {
+      return c.json({ error: "At least one point type is required" }, 400);
+    }
+
+    const updateValues: {
+      rewardPoints?: SQL;
+      reputationScore?: SQL;
+    } = {};
+
+    if (rewardPoints !== undefined) {
+      updateValues.rewardPoints = sql`${users.rewardPoints} + ${rewardPoints}`;
+    }
+
+    if (reputationScore !== undefined) {
+      updateValues.reputationScore = sql`${users.reputationScore} + ${reputationScore}`;
+    }
+
+    const [updatedUser] = await db
+      .update(users)
+      .set(updateValues)
+      .where(eq(users.profileId, profileId))
+      .returning();
+
+    if (!updatedUser) {
+      return c.json({ error: "User not found" }, 404);
+    }
+
+    return c.json(updatedUser);
+  }
+);
+
+export default usersRouter;

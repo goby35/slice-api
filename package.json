@@ -2,17 +2,30 @@
   "name": "hono",
   "type": "module",
   "dependencies": {
+    "@hono/zod-validator": "^0.7.4",
     "dotenv": "^17.2.3",
+    "drizzle-kit": "^0.31.6",
+    "drizzle-orm": "^0.44.7",
     "hono": "^4.10.4",
-    "jose": "^6.1.0"
+    "hono-rate-limiter": "^0.4.2",
+    "jose": "^6.1.0",
+    "pg": "^8.16.3",
+    "pino": "^10.1.0",
+    "postgres": "^3.4.7",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/node": "^20.11.17",
+    "@types/pg": "^8.15.6",
     "tsup": "^8.5.0",
     "tsx": "^4.7.1",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vite": "^7.1.12",
+    "vite-tsconfig-paths": "^5.1.4"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsup src/index.ts --format esm --out-dir dist --target node18 --dts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "vercel-build": "npm run build && npm run typecheck"
   }
 }
