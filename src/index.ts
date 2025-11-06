@@ -100,54 +100,7 @@ app.route('/applications', taskApplicationsRouter)
 // Simple root to verify server is running
 app.get('/', (c) => c.text('slice-api running'))
 
-// API: create task (protected)
-app.post('/tasks', authMiddleware, async (c) => {
-  // Get verified user payload from authMiddleware
-  const userPayload = (c as any).get('user') as Record<string, any> | undefined
-  const profileIdFromToken = userPayload?.act?.sub || userPayload?.sub
-  if (!profileIdFromToken) return c.text('Unauthorized', 401)
-
-  // Parse request body
-  let body: any
-  try {
-    body = await c.req.json()
-  } catch (e) {
-    return c.json({ error: 'Invalid JSON body' }, 400)
-  }
-
-  // Basic validation (required fields)
-  const { title, objective, deliverables, acceptanceCriteria, rewardPoints, deadline } = body || {}
-  if (!title || !objective || !deliverables || !acceptanceCriteria || typeof rewardPoints !== 'number') {
-    return c.json({ error: 'Missing or invalid required fields' }, 400)
-  }
-
-  // Build values and ignore any client-sent employerProfileId
-  const values: Record<string, any> = {
-    employerProfileId: profileIdFromToken,
-    title,
-    objective,
-    deliverables,
-    acceptanceCriteria,
-    rewardPoints
-  }
-
-  if (deadline) {
-    try {
-      values.deadline = new Date(deadline)
-    } catch {
-      // ignore invalid date and let DB validation handle if necessary
-    }
-  }
-
-  try {
-  const [newTask] = await db.insert(tasks).values(values as any).returning()
-    return c.json(newTask, 201)
-  } catch (err: any) {
-    // Drizzle / DB error
-    console.error('Failed to create task', err)
-    return c.json({ error: 'Failed to create task' }, 500)
-  }
-})
+// NOTE: task creation is handled inside `src/routes/tasks.ts` (router mounted at /tasks)
 
 // Protected REST shim routes (rate limiter then auth)
 app.use('/pageview', rateLimiter({ requests: 60 }))
