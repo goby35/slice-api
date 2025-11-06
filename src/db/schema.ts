@@ -44,7 +44,7 @@ export const tasks = pgTable("tasks", {
   status: varchar("status", { length: 20 })
     .notNull()
     .default("open")
-    .$type<"open" | "assigned" | "in_progress" | "completed" | "cancelled">(),
+    .$type<"open" | "assigned" | "completed" | "cancelled">(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   deadline: timestamp("deadline")
 });
