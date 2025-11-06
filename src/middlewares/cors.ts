@@ -8,12 +8,14 @@ const allowedOrigins = [
   "https://developer.lens.xyz",
   "https://yoginth.com",
   "http://localhost:3000",
-  "http://localhost:4783"
+  "http://localhost:4000",
+  "https://slice-api-indol.vercel.app"
+
 ];
 
 const cors = corsMiddleware({
-  allowHeaders: ["Content-Type", "X-Access-Token"],
-  allowMethods: ["GET", "POST","PUT", "PATCH", "DELETE"],
+  allowHeaders: ["Content-Type", "X-Access-Token", "Authorization"],
+  allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   credentials: true,
   origin: allowedOrigins
 });
