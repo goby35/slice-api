@@ -53,21 +53,28 @@ tasksRouter.post(
   authMiddleware,
   zValidator("json", createTaskSchema),
   async (c) => {
-    const data = (c.req as any).valid("json");
+    try {
+      const data = (c.req as any).valid("json");
 
-    // get verified user payload set by authMiddleware
-    const userPayload = (c as any).get("user") as Record<string, any> | undefined;
-    const profileIdFromToken = userPayload?.act?.sub || userPayload?.sub;
-    if (!profileIdFromToken) return c.json({ error: "Unauthorized" }, 401);
+      // get verified user payload set by authMiddleware
+      const userPayload = (c as any).get("user") as Record<string, any> | undefined;
+      const profileIdFromToken = userPayload?.act?.sub || userPayload?.sub;
+      if (!profileIdFromToken) return c.json({ error: "Unauthorized" }, 401);
 
-    const values = {
-      ...data,
-      employerProfileId: profileIdFromToken,
-      deadline: data.deadline ? new Date(data.deadline) : undefined
-    } as any;
+      const values = {
+        ...data,
+        employerProfileId: profileIdFromToken,
+        deadline: data.deadline ? new Date(data.deadline) : undefined
+      } as any;
 
-    const [newTask] = await db.insert(tasks).values(values).returning();
-    return c.json(newTask, 201);
+      const [newTask] = await db.insert(tasks).values(values).returning();
+      return c.json(newTask, 201);
+
+      // project file structure: index(runserver + bigest routes) => routes(more specific routes) (using middlewares) => services(db, business logic, utils)
+    } catch (err: any) { // exception handling + custom error response
+      console.error("Failed to create task", err);
+      return c.json({ error: "Failed to create task" }, 500); 
+    }
   }
 );
 

@@ -117,7 +117,7 @@ const authMiddleware = async (c: Context, next: Next) => {
 
   try {
     try {
-  const { payload } = await jwtVerify(token, await getJWKS());
+      const { payload } = await jwtVerify(token, await getJWKS());
       // Attach the decoded payload to the context for downstream handlers.
       c.set("user", payload as Record<string, unknown>);
       return next();
