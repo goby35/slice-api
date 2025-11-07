@@ -9,13 +9,14 @@ const allowedOrigins = [
   "https://yoginth.com",
   "http://localhost:3000",
   "http://localhost:4000",
-  "https://slice-api-indol.vercel.app"
+  "https://slice-api-indol.vercel.app",
+  "https://sf-web-ten.vercel.app"
 
 ];
 
 const cors = corsMiddleware({
   allowHeaders: ["Content-Type", "X-Access-Token", "Authorization"],
-  allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+  allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   credentials: true,
   origin: allowedOrigins
 });

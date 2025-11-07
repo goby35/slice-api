@@ -31,7 +31,7 @@ const forward = async (c: Context, target: string) => {
     try {
       // Headers can be a Headers instance
       if (typeof rawHeaders.forEach === 'function') {
-        rawHeaders.for1Each((v: any, k: string) => { if (k.toLowerCase() !== 'host') headers[k] = String(v) })
+        rawHeaders.forEach((v: any, k: string) => { if (k.toLowerCase() !== 'host') headers[k] = String(v) })
       } else {
         for (const [k, v] of Object.entries(rawHeaders)) {
           if (k.toLowerCase() === 'host') continue
@@ -93,7 +93,7 @@ app.get('/og/*', async (c) => forward(c, `${REAL_HEY_API_URL}${c.req.path}`))
 
 // Mount local routers for development/testing
 // These routers expose the tasks, users and applications endpoints defined in src/routes
-app.route('/tasks', tasksRouter)
+app.route('/tasks', tasksRouter)  
 app.route('/users', usersRouter)
 app.route('/applications', taskApplicationsRouter)
 
