@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../db/index.js";
-import { tasks, taskChecklists } from "../db/schema.js";
+import { tasks, taskChecklists, taskApplications } from "../db/schema.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
 import { notifyTaskCreated } from "../services/notificationService.js";
 
@@ -169,32 +169,26 @@ tasksRouter.patch("/:id", authMiddleware, async (c) => {
   }
 
   // Kiểm tra xem có application nào không
-  const applications = await db
+  const applicationsData = await db
     .select()
-    .from(taskChecklists)
-    .where(eq(taskChecklists.taskId, id));
+    .from(taskApplications)
+    .where(eq(taskApplications.taskId, id));
 
-  // Nếu có application, chỉ cho phép đổi status sang 'cancelled'
-  if (applications.length > 0) {
-    const [cancelledTask] = await db
-      .update(tasks)
-      .set({ status: "cancelled" })
-      .where(eq(tasks.id, id))
-      .returning();
-
-    return c.json({ 
-      message: "Task cancelled successfully (has applications)", 
-      task: cancelledTask 
-    });
-  }
-
-  // Nếu không có application, xóa luôn
-  const [deletedTask] = await db
-    .delete(tasks)
+  // đổi status sang 'cancelled'
+  const [cancelledTask] = await db
+    .update(tasks)
+    .set({ status: "cancelled" })
     .where(eq(tasks.id, id))
     .returning();
 
-  return c.json({ message: "Task deleted successfully" });
+    applicationsData.forEach(async (application) => {
+      await db.update(taskApplications).set({ status: "rejected" }).where(eq(taskApplications.id, application.id));
+    });
+    
+  return c.json({ 
+    message: "Task cancelled successfully (has applications)", 
+    task: cancelledTask 
+  });
 });
 
 export default tasksRouter;

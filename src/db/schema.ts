@@ -67,7 +67,7 @@ export const taskApplications = sliceDB.table("task_applications", {
   status: varchar("status", { length: 20 })
     .notNull()
     .default("submitted")
-    .$type<"submitted" | "accepted" | "rejected" | ""  |"needs_revision" | "completed">(),
+    .$type<"submitted" | "accepted" | "rejected" | "needs_revision" | "completed">(),
   feedback: text("feedback"), // Feedback từ employer khi yêu cầu chỉnh sửa
   rating: integer("rating"), // Đánh giá từ 1-5 sao
   comment: text("comment"), // Comment đánh giá
