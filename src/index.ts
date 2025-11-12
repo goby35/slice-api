@@ -7,6 +7,7 @@ import authContext from './middlewares/authContext.js'
 import tasksRouter from './routes/tasks.js'
 import usersRouter from './routes/users.js'
 import taskApplicationsRouter from './routes/taskApplications.js'
+import notificationsRouter from './routes/notifications.js'
 import { db } from './db/index.js'
 import { tasks } from './db/schema.js'
 
@@ -96,6 +97,7 @@ app.get('/og/*', async (c) => forward(c, `${REAL_HEY_API_URL}${c.req.path}`))
 app.route('/tasks', tasksRouter)  
 app.route('/users', usersRouter)
 app.route('/applications', taskApplicationsRouter)
+app.route('/notifications', notificationsRouter)
 
 // Simple root to verify server is running
 app.get('/', (c) => c.text('slice-api running'))

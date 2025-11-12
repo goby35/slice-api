@@ -101,6 +101,7 @@ export default class ApiService {
   }
 
   // Tasks
+
   async listTasks() {
     const res = await fetch(`${this.baseUrl}/tasks`, { headers: this.headers() });
     return this.handleResponse(res);

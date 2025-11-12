@@ -3,17 +3,23 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../db/index.js";
-import { tasks } from "../db/schema.js";
+import { tasks, taskChecklists } from "../db/schema.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
+import { notifyTaskCreated } from "../services/notificationService.js";
 
 // Zod Schemas
 const taskStatusSchema = z.enum([
   "open",
-  "assigned",
+  "in_review",
   "in_progress",
   "completed",
   "cancelled"
 ]);
+
+const checklistItemSchema = z.object({
+  itemText: z.string().min(1),
+  orderIndex: z.number().int().optional()
+});
 
 const createTaskSchema = z.object({
   // employerProfileId is intentionally NOT provided by client; server will derive it from JWT (act.sub || sub)
@@ -31,7 +37,8 @@ const createTaskSchema = z.object({
     .number()
     .int()
     .positive("Reward points must be a positive integer"),
-  deadline: z.string().datetime().optional()
+  deadline: z.string().datetime().optional(),
+  checklist: z.array(checklistItemSchema).optional()
 });
 
 const updateTaskSchema = createTaskSchema.partial().extend({
@@ -61,40 +68,62 @@ tasksRouter.post(
       const profileIdFromToken = userPayload?.act?.sub || userPayload?.sub;
       if (!profileIdFromToken) return c.json({ error: "Unauthorized" }, 401);
 
+      const { checklist, ...taskData } = data;
+
       const values = {
-        ...data,
+        ...taskData,
         employerProfileId: profileIdFromToken,
-        deadline: data.deadline ? new Date(data.deadline) : undefined
+        deadline: taskData.deadline ? new Date(taskData.deadline) : undefined
       } as any;
 
       const [newTask] = await db.insert(tasks).values(values).returning();
-      return c.json(newTask, 201);
 
-      // project file structure: index(runserver + bigest routes) => routes(more specific routes) (using middlewares) => services(db, business logic, utils)
-    } catch (err: any) { // exception handling + custom error response
+      // Tạo checklist items nếu có
+      if (checklist && checklist.length > 0) {
+        const checklistValues = checklist.map((item: any, index: number) => ({
+          taskId: newTask.id,
+          itemText: item.itemText,
+          orderIndex: item.orderIndex ?? index
+        }));
+        await db.insert(taskChecklists).values(checklistValues);
+      }
+
+      // [Thông báo #1] Task mới được tạo
+      await notifyTaskCreated(newTask.id, newTask.title);
+
+      return c.json(newTask, 201);
+    } catch (err: any) {
       console.error("Failed to create task", err);
       return c.json({ error: "Failed to create task" }, 500); 
     }
   }
 );
 
-// GET /tasks/:id - Lấy thông tin chi tiết một task theo ID
+// GET /tasks/:id - Lấy thông tin chi tiết một task theo ID (bao gồm checklist)
 tasksRouter.get("/:id", async (c) => {
-  const id = parseInt(c.req.param("id"), 10);
-  if (Number.isNaN(id)) {
+  const id = c.req.param("id");
+  if (!id) {
     return c.json({ error: "Invalid ID" }, 400);
   }
   const task = await db.select().from(tasks).where(eq(tasks.id, id));
   if (task.length === 0) {
     return c.json({ error: "Task not found" }, 404);
   }
-  return c.json(task[0]);
+
+  // Lấy checklist của task
+  const checklist = await db
+    .select()
+    .from(taskChecklists)
+    .where(eq(taskChecklists.taskId, id))
+    .orderBy(taskChecklists.orderIndex);
+
+  return c.json({ ...task[0], checklist });
 });
 
 // PUT /tasks/:id - Cập nhật một task
 tasksRouter.put("/:id", zValidator("json", updateTaskSchema), async (c) => {
-  const id = parseInt(c.req.param("id"), 10);
-  if (Number.isNaN(id)) {
+  const id = c.req.param("id");
+  if (!id) {
     return c.json({ error: "Invalid ID" }, 400);
   }
   const data = (c.req as any).valid("json");
@@ -116,21 +145,54 @@ tasksRouter.put("/:id", zValidator("json", updateTaskSchema), async (c) => {
   return c.json(updatedTask);
 });
 
-// DELETE /tasks/:id - Xóa một task
-tasksRouter.delete("/:id", async (c) => {
-  const id = parseInt(c.req.param("id"), 10);
-  if (Number.isNaN(id)) {
+// PATCH /tasks/:id - Xóa một task (hoặc hủy task)
+tasksRouter.patch("/:id", authMiddleware, async (c) => {
+  const id = c.req.param("id");
+  if (!id) {
     return c.json({ error: "Invalid ID" }, 400);
   }
 
+  const userPayload = (c as any).get("user") as Record<string, any> | undefined;
+  const profileId = userPayload?.act?.sub || userPayload?.sub;
+  if (!profileId) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  // Kiểm tra task có tồn tại và thuộc về user không
+  const [task] = await db.select().from(tasks).where(eq(tasks.id, id));
+  if (!task) {
+    return c.json({ error: "Task not found" }, 404);
+  }
+
+  if (task.employerProfileId !== profileId) {
+    return c.json({ error: "Forbidden: You can only delete your own tasks" }, 403);
+  }
+
+  // Kiểm tra xem có application nào không
+  const applications = await db
+    .select()
+    .from(taskChecklists)
+    .where(eq(taskChecklists.taskId, id));
+
+  // Nếu có application, chỉ cho phép đổi status sang 'cancelled'
+  if (applications.length > 0) {
+    const [cancelledTask] = await db
+      .update(tasks)
+      .set({ status: "cancelled" })
+      .where(eq(tasks.id, id))
+      .returning();
+
+    return c.json({ 
+      message: "Task cancelled successfully (has applications)", 
+      task: cancelledTask 
+    });
+  }
+
+  // Nếu không có application, xóa luôn
   const [deletedTask] = await db
     .delete(tasks)
     .where(eq(tasks.id, id))
     .returning();
-
-  if (!deletedTask) {
-    return c.json({ error: "Task not found" }, 404);
-  }
 
   return c.json({ message: "Task deleted successfully" });
 });

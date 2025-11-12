@@ -1,0 +1,1238 @@
+{
+	"info": {
+		"_postman_id": "slice-api-full-test",
+		"name": "Slice API - Complete Flow Test",
+		"description": "Complete test collection for Slice API SocialFi Jobs platform. Tests all 9 notification types, task lifecycle, application flow, and authentication.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "0. Setup & Sanity Check",
+			"item": [
+				{
+					"name": "GET / - Check Server Running",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Server is running\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response contains 'slice-api running'\", () => {",
+									"    pm.expect(pm.response.text()).to.include('slice-api running');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/",
+							"host": ["{{BASE_URL}}"],
+							"path": [""]
+						},
+						"description": "Verify server is running and reachable"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "1. Users Management",
+			"item": [
+				{
+					"name": "POST /users - Create Employer",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"User created\", () => {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"pm.environment.set(\"EMPLOYER_PROFILE\", json.profileId);",
+									"",
+									"pm.test(\"Has profileId\", () => {",
+									"    pm.expect(json.profileId).to.be.a('string');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"profileId\": \"employer_test_{{$timestamp}}\",\n  \"username\": \"employer_test\",\n  \"professionalRoles\": [\"employer\", \"manager\"]\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/users",
+							"host": ["{{BASE_URL}}"],
+							"path": ["users"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "POST /users - Create Freelancer",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"User created\", () => {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"pm.environment.set(\"FREELANCER_PROFILE\", json.profileId);",
+									"",
+									"pm.test(\"Has profileId\", () => {",
+									"    pm.expect(json.profileId).to.be.a('string');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"profileId\": \"freelancer_test_{{$timestamp}}\",\n  \"username\": \"freelancer_test\",\n  \"professionalRoles\": [\"developer\", \"designer\"]\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/users",
+							"host": ["{{BASE_URL}}"],
+							"path": ["users"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "GET /users - List All Users",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 200\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response is array\", () => {",
+									"    const json = pm.response.json();",
+									"    pm.expect(Array.isArray(json)).to.be.true;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/users",
+							"host": ["{{BASE_URL}}"],
+							"path": ["users"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "GET /users/:profileId - Get Employer",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"User found\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"pm.test(\"Correct profileId\", () => {",
+									"    pm.expect(json.profileId).to.eql(pm.environment.get('EMPLOYER_PROFILE'));",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/users/{{EMPLOYER_PROFILE}}",
+							"host": ["{{BASE_URL}}"],
+							"path": ["users", "{{EMPLOYER_PROFILE}}"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "2. Tasks (Employer)",
+			"item": [
+				{
+					"name": "POST /tasks - Create Task with Checklist",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Task created\", () => {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"pm.environment.set(\"TASK_ID\", json.id);",
+									"",
+									"pm.test(\"Has task ID\", () => {",
+									"    pm.expect(json.id).to.be.a('number');",
+									"});",
+									"",
+									"pm.test(\"Task title matches\", () => {",
+									"    pm.expect(json.title).to.include('Landing Page');",
+									"});",
+									"",
+									"pm.test(\"Status is open\", () => {",
+									"    pm.expect(json.status).to.eql('open');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{EMPLOYER_JWT}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Build Landing Page - Postman Test\",\n  \"objective\": \"Create a modern, responsive landing page for a SaaS product\",\n  \"deliverables\": \"Fully responsive HTML/CSS/JavaScript page with animations\",\n  \"acceptanceCriteria\": \"Mobile-friendly, < 3s load time, accessibility score > 90\",\n  \"rewardPoints\": 150,\n  \"deadline\": \"2026-01-31T23:59:59Z\",\n  \"checklist\": [\n    {\"itemText\": \"Create design mockup\", \"orderIndex\": 0},\n    {\"itemText\": \"Implement responsive layout\", \"orderIndex\": 1},\n    {\"itemText\": \"Add animations and interactions\", \"orderIndex\": 2},\n    {\"itemText\": \"Accessibility audit\", \"orderIndex\": 3}\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/tasks",
+							"host": ["{{BASE_URL}}"],
+							"path": ["tasks"]
+						},
+						"description": "[Notification #1] task_created → Public/Group"
+					},
+					"response": []
+				},
+				{
+					"name": "GET /tasks - List All Tasks",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 200\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const arr = pm.response.json();",
+									"const taskId = pm.environment.get('TASK_ID');",
+									"",
+									"pm.test(\"Created task is in list\", () => {",
+									"    pm.expect(arr.some(t => t.id == taskId)).to.be.true;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/tasks",
+							"host": ["{{BASE_URL}}"],
+							"path": ["tasks"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "GET /tasks/:id - Get Task Details with Checklist",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Task found\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"",
+									"pm.test(\"Has checklist\", () => {",
+									"    pm.expect(Array.isArray(json.checklist)).to.be.true;",
+									"    pm.expect(json.checklist.length).to.be.greaterThan(0);",
+									"});",
+									"",
+									"pm.test(\"Task ID matches\", () => {",
+									"    pm.expect(json.id).to.eql(parseInt(pm.environment.get('TASK_ID')));",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/tasks/{{TASK_ID}}",
+							"host": ["{{BASE_URL}}"],
+							"path": ["tasks", "{{TASK_ID}}"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "PUT /tasks/:id - Update Task",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Task updated\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"pm.test(\"Reward points updated\", () => {",
+									"    pm.expect(json.rewardPoints).to.eql(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"rewardPoints\": 200\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/tasks/{{TASK_ID}}",
+							"host": ["{{BASE_URL}}"],
+							"path": ["tasks", "{{TASK_ID}}"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "3. Applications (Freelancer)",
+			"item": [
+				{
+					"name": "POST /applications - Apply for Task",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Application created\", () => {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"pm.environment.set(\"APP_ID\", json.id);",
+									"",
+									"pm.test(\"Status is submitted\", () => {",
+									"    pm.expect(json.status).to.eql('submitted');",
+									"});",
+									"",
+									"pm.test(\"Task ID matches\", () => {",
+									"    pm.expect(json.taskId).to.eql(parseInt(pm.environment.get('TASK_ID')));",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{FREELANCER_JWT}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"taskId\": {{TASK_ID}},\n  \"coverLetter\": \"I have 5 years of experience building responsive landing pages. I can deliver this project within 2 weeks with high quality.\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/applications",
+							"host": ["{{BASE_URL}}"],
+							"path": ["applications"]
+						},
+						"description": "[Notification #2] application_received → Employer"
+					},
+					"response": []
+				},
+				{
+					"name": "GET /applications - List All Applications",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 200\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const arr = pm.response.json();",
+									"const appId = pm.environment.get('APP_ID');",
+									"",
+									"pm.test(\"Application in list\", () => {",
+									"    pm.expect(arr.some(a => a.id == appId)).to.be.true;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/applications",
+							"host": ["{{BASE_URL}}"],
+							"path": ["applications"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "GET /applications/task/:taskId - Get Applications for Task",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 200\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const arr = pm.response.json();",
+									"pm.test(\"Has applications\", () => {",
+									"    pm.expect(arr.length).to.be.greaterThan(0);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/applications/task/{{TASK_ID}}",
+							"host": ["{{BASE_URL}}"],
+							"path": ["applications", "task", "{{TASK_ID}}"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "4. Employer Actions",
+			"item": [
+				{
+					"name": "PUT /applications/:id - Request Revision",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status updated\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"pm.test(\"Status is needs_revision\", () => {",
+									"    pm.expect(json.status).to.eql('needs_revision');",
+									"});",
+									"",
+									"pm.test(\"Has feedback\", () => {",
+									"    pm.expect(json.feedback).to.be.a('string');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{EMPLOYER_JWT}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"needs_revision\",\n  \"feedback\": \"Please improve mobile responsiveness and add more animations to the hero section.\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/applications/{{APP_ID}}",
+							"host": ["{{BASE_URL}}"],
+							"path": ["applications", "{{APP_ID}}"]
+						},
+						"description": "[Notification #5] task_needs_revision → Freelancer"
+					},
+					"response": []
+				},
+				{
+					"name": "PUT /applications/:id - Accept Application",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Application accepted\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"pm.test(\"Status is accepted\", () => {",
+									"    pm.expect(json.status).to.eql('accepted');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{EMPLOYER_JWT}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"accepted\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/applications/{{APP_ID}}",
+							"host": ["{{BASE_URL}}"],
+							"path": ["applications", "{{APP_ID}}"]
+						},
+						"description": "[Notification #3] application_accepted → Freelancer"
+					},
+					"response": []
+				},
+				{
+					"name": "PUT /applications/:id - Reject Application",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Application rejected\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"pm.test(\"Status is rejected\", () => {",
+									"    pm.expect(json.status).to.eql('rejected');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{EMPLOYER_JWT}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"rejected\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/applications/{{APP_ID}}",
+							"host": ["{{BASE_URL}}"],
+							"path": ["applications", "{{APP_ID}}"]
+						},
+						"description": "[Notification #9] application_rejected → Freelancer"
+					},
+					"response": []
+				},
+				{
+					"name": "PUT /applications/:id - Approve & Rate Immediately",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Application completed\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"pm.test(\"Status is completed\", () => {",
+									"    pm.expect(json.status).to.eql('completed');",
+									"});",
+									"",
+									"pm.test(\"Has rating\", () => {",
+									"    pm.expect(json.rating).to.eql(5);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{EMPLOYER_JWT}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"completed\",\n  \"rating\": 5,\n  \"comment\": \"Excellent work! The landing page looks amazing and meets all requirements.\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/applications/{{APP_ID}}",
+							"host": ["{{BASE_URL}}"],
+							"path": ["applications", "{{APP_ID}}"]
+						},
+						"description": "[Notification #6] task_approved → Freelancer\n[Notification #8] task_rated → Freelancer"
+					},
+					"response": []
+				},
+				{
+					"name": "POST /applications/:id/rate - Rate After Auto-Approve",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Rating submitted\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"pm.test(\"Has rating\", () => {",
+									"    pm.expect(json.rating).to.be.a('number');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{EMPLOYER_JWT}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"rating\": 4,\n  \"comment\": \"Good work, some minor improvements needed but overall solid delivery.\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/applications/{{APP_ID}}/rate",
+							"host": ["{{BASE_URL}}"],
+							"path": ["applications", "{{APP_ID}}", "rate"]
+						},
+						"description": "[Notification #8] task_rated → Freelancer"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "5. Freelancer Resubmit (Auto-Approve)",
+			"item": [
+				{
+					"name": "POST /applications - Resubmit After Revision",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Resubmit successful\", () => {",
+									"    const status = pm.response.code;",
+									"    pm.expect([200, 201]).to.include(status);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"",
+									"if (json.application) {",
+									"    pm.test(\"Auto-approved\", () => {",
+									"        pm.expect(json.application.status).to.eql('completed');",
+									"    });",
+									"} else if (json.status) {",
+									"    pm.test(\"Application status\", () => {",
+									"        pm.expect(['completed', 'submitted']).to.include(json.status);",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{FREELANCER_JWT}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"taskId\": {{TASK_ID}},\n  \"coverLetter\": \"I have updated the mobile responsiveness and added smooth animations. All feedback has been addressed.\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/applications",
+							"host": ["{{BASE_URL}}"],
+							"path": ["applications"]
+						},
+						"description": "Auto-approve logic: If previous status was 'needs_revision', system auto-completes.\n[Notification #4] task_submitted → Employer\n[Notification #7] rating_reminder → Employer"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "6. Notifications",
+			"item": [
+				{
+					"name": "GET /notifications - Freelancer Check Notifications",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Notifications retrieved\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const arr = pm.response.json();",
+									"pm.test(\"Response is array\", () => {",
+									"    pm.expect(Array.isArray(arr)).to.be.true;",
+									"});",
+									"",
+									"if (arr.length > 0) {",
+									"    pm.environment.set('NOTIF_ID', arr[0].id);",
+									"    ",
+									"    pm.test(\"Has notification types\", () => {",
+									"        const types = arr.map(n => n.type);",
+									"        const validTypes = [",
+									"            'task_created', 'application_received', 'application_accepted',",
+									"            'application_rejected', 'task_submitted', 'task_needs_revision',",
+									"            'task_approved', 'rating_reminder', 'task_rated'",
+									"        ];",
+									"        pm.expect(types.every(t => validTypes.includes(t))).to.be.true;",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{FREELANCER_JWT}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/notifications",
+							"host": ["{{BASE_URL}}"],
+							"path": ["notifications"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "GET /notifications - Employer Check Notifications",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Notifications retrieved\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const arr = pm.response.json();",
+									"pm.test(\"Has notifications\", () => {",
+									"    pm.expect(Array.isArray(arr)).to.be.true;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{EMPLOYER_JWT}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/notifications",
+							"host": ["{{BASE_URL}}"],
+							"path": ["notifications"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "GET /notifications/unread - Count Unread",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Unread count retrieved\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"pm.test(\"Has count property\", () => {",
+									"    pm.expect(json.count).to.be.a('number');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{FREELANCER_JWT}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/notifications/unread",
+							"host": ["{{BASE_URL}}"],
+							"path": ["notifications", "unread"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "PUT /notifications/:id/read - Mark as Read",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Notification marked as read\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"pm.test(\"IsRead is 1\", () => {",
+									"    pm.expect(json.isRead).to.eql(1);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{FREELANCER_JWT}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/notifications/{{NOTIF_ID}}/read",
+							"host": ["{{BASE_URL}}"],
+							"path": ["notifications", "{{NOTIF_ID}}", "read"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "PUT /notifications/read-all - Mark All as Read",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"All notifications marked as read\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"pm.test(\"Has success message\", () => {",
+									"    pm.expect(json.message).to.be.a('string');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{FREELANCER_JWT}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/notifications/read-all",
+							"host": ["{{BASE_URL}}"],
+							"path": ["notifications", "read-all"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "DELETE /notifications/:id - Delete Notification",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Notification deleted\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"pm.test(\"Has success message\", () => {",
+									"    pm.expect(json.message).to.include('deleted');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{FREELANCER_JWT}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/notifications/{{NOTIF_ID}}",
+							"host": ["{{BASE_URL}}"],
+							"path": ["notifications", "{{NOTIF_ID}}"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "7. Task Management",
+			"item": [
+				{
+					"name": "DELETE /tasks/:id - Cancel/Delete Task",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Task deleted or cancelled\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"pm.test(\"Has success message\", () => {",
+									"    pm.expect(json.message).to.be.a('string');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{EMPLOYER_JWT}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/tasks/{{TASK_ID}}",
+							"host": ["{{BASE_URL}}"],
+							"path": ["tasks", "{{TASK_ID}}"]
+						},
+						"description": "If task has applications, status will be set to 'cancelled'. Otherwise, task is deleted."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "8. Proxy Endpoints",
+			"item": [
+				{
+					"name": "GET /metadata/sts - Forward to Hey API",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Request forwarded\", () => {",
+									"    const validStatuses = [200, 502, 504];",
+									"    pm.expect(validStatuses).to.include(pm.response.code);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/metadata/sts",
+							"host": ["{{BASE_URL}}"],
+							"path": ["metadata", "sts"]
+						},
+						"description": "Proxy request to Hey API"
+					},
+					"response": []
+				},
+				{
+					"name": "GET /oembed/get - Forward OEmbed Request",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Request forwarded\", () => {",
+									"    const validStatuses = [200, 502, 504];",
+									"    pm.expect(validStatuses).to.include(pm.response.code);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/oembed/get?url=https://example.com",
+							"host": ["{{BASE_URL}}"],
+							"path": ["oembed", "get"],
+							"query": [
+								{
+									"key": "url",
+									"value": "https://example.com"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Global pre-request script",
+					"// You can add common setup here"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Global test script",
+					"// Common assertions can go here"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "BASE_URL",
+			"value": "http://127.0.0.1:3000",
+			"type": "string"
+		}
+	]
+}

@@ -9,7 +9,7 @@ const allowedOrigins = [
   "https://yoginth.com",
   "http://localhost:3000",
   "http://localhost:4000",
-  "https://slice-api-indol.vercel.app",
+  "http://localhost:5173",
   "https://sf-web-ten.vercel.app"
 
 ];

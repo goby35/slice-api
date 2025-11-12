@@ -136,10 +136,30 @@ npx vercel deploy --prod
 	- `node scripts/check-jwks.mjs <LENS_API_URL>` — thử fetch JWKS bằng nhiều candidate URL và in ra các `kid`/`kty`/`alg`.
 - Rate limiter hiện là in-memory (dùng cho dev). Với production multi-replica bạn nên chuyển sang Redis hoặc dịch vụ chia sẻ.
 
-## Muốn tôi làm thêm?
+## 🎯 Tính năng mới: SocialFi Jobs Flow
 
-- Tôi có thể: (A) thêm `vite.config.ts` + `vite-tsconfig-paths` để hỗ trợ alias `@/` (B) thêm `tsup` bundle script để tránh lỗi ESM, (C) thêm tests hoặc script dev hữu ích.
-- Hãy nói cho tôi biết bạn muốn ưu tiên gì — tôi sẽ implement tiếp.
+Dự án hiện đã triển khai **flow hoàn chỉnh** cho hệ thống SocialFi Jobs theo UML diagram, bao gồm:
+
+### ✨ Tính năng chính
+- ✅ **9 loại thông báo** (task_created, application_received, application_accepted, application_rejected, ...)
+- ✅ **Auto-approve logic**: Tự động duyệt khi freelancer submit lại sau revision
+- ✅ **Task checklists**: Quản lý checklist cho mỗi task
+- ✅ **Rating system**: Đánh giá 1-5 sao với comment
+- ✅ **Multi-status workflow**: open → in_review → in_progress → completed/cancelled
+
+### 📚 API Documentation
+Xem chi tiết đầy đủ flow và API endpoints tại: **[docs/API_FLOW.md](./docs/API_FLOW.md)**
+
+### 🗄️ Database Migration
+Chạy migration để tạo bảng mới:
+```bash
+psql -U postgres -d your_database -f migrations/001_add_notifications_and_checklists.sql
+```
+
+### 🚀 Các endpoint mới
+- **Tasks**: `POST /tasks` với checklist support
+- **Applications**: `POST /applications`, `PUT /applications/:id`, `POST /applications/:id/rate`
+- **Notifications**: `GET /notifications`, `PUT /notifications/:id/read`, `PUT /notifications/read-all`
 
 ---
 

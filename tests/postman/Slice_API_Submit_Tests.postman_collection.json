@@ -1,0 +1,287 @@
+{
+	"info": {
+		"_postman_id": "slice-api-submit-addon",
+		"name": "Slice API - Submit Outcome Tests",
+		"description": "Additional tests for the new POST /applications/:id/submit endpoint",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Freelancer Submit Outcome - First Time",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"First submission successful\", () => {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"const json = pm.response.json();",
+							"",
+							"pm.test(\"Application status is in_review\", () => {",
+							"    pm.expect(json.application.status).to.eql('in_review');",
+							"});",
+							"",
+							"pm.test(\"Message indicates in_review\", () => {",
+							"    pm.expect(json.message).to.include('in_review');",
+							"});",
+							"",
+							"pm.test(\"Outcome is saved\", () => {",
+							"    pm.expect(json.application.outcome).to.be.a('string');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{FREELANCER_JWT}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"outcome\": \"Đã hoàn thành design như yêu cầu:\\n- Figma file: https://figma.com/file/xyz\\n- Exported assets: PNG, SVG\\n- Responsive cho mobile và desktop\\n- Dark mode ready\",\n  \"outcomeType\": \"text\"\n}"
+				},
+				"url": {
+					"raw": "{{BASE_URL}}/applications/{{APP_ID}}/submit",
+					"host": ["{{BASE_URL}}"],
+					"path": ["applications", "{{APP_ID}}", "submit"]
+				},
+				"description": "Freelancer submits work outcome for the first time. Should set application and task status to 'in_review'."
+			},
+			"response": []
+		},
+		{
+			"name": "Freelancer Resubmit After Revision",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Resubmission successful\", () => {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"const json = pm.response.json();",
+							"",
+							"pm.test(\"Application auto-completed\", () => {",
+							"    pm.expect(json.application.status).to.eql('completed');",
+							"});",
+							"",
+							"pm.test(\"Submission count incremented\", () => {",
+							"    pm.expect(json.application.submissionCount).to.be.above(0);",
+							"});",
+							"",
+							"pm.test(\"CompletedAt timestamp set\", () => {",
+							"    pm.expect(json.application.completedAt).to.not.be.null;",
+							"});",
+							"",
+							"pm.test(\"Message indicates completion\", () => {",
+							"    pm.expect(json.message).to.include('completed');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{FREELANCER_JWT}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"outcome\": \"Đã cập nhật theo feedback:\\n✓ Thêm dark mode toggle\\n✓ Responsive mobile (< 768px)\\n✓ Color scheme đã update theo brand guideline\\n✓ Animation transitions mượt hơn\\n\\nFigma updated: https://figma.com/file/xyz-v2\",\n  \"outcomeType\": \"text\"\n}"
+				},
+				"url": {
+					"raw": "{{BASE_URL}}/applications/{{APP_ID}}/submit",
+					"host": ["{{BASE_URL}}"],
+					"path": ["applications", "{{APP_ID}}", "submit"]
+				},
+				"description": "Freelancer resubmits after revision request. Should AUTO-COMPLETE the application and task."
+			},
+			"response": []
+		},
+		{
+			"name": "Submit with File URL",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Submission successful\", () => {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"const json = pm.response.json();",
+							"",
+							"pm.test(\"OutcomeType is file\", () => {",
+							"    pm.expect(json.application.outcomeType).to.eql('file');",
+							"});",
+							"",
+							"pm.test(\"Outcome contains URL\", () => {",
+							"    pm.expect(json.application.outcome).to.include('http');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{FREELANCER_JWT}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"outcome\": \"https://ipfs.io/ipfs/QmXxYyZz123456789\",\n  \"outcomeType\": \"file\"\n}"
+				},
+				"url": {
+					"raw": "{{BASE_URL}}/applications/{{APP_ID}}/submit",
+					"host": ["{{BASE_URL}}"],
+					"path": ["applications", "{{APP_ID}}", "submit"]
+				},
+				"description": "Submit outcome as a file URL (IPFS, Google Drive, etc.)"
+			},
+			"response": []
+		},
+		{
+			"name": "Submit - Unauthorized (Wrong User)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Request forbidden\", () => {",
+							"    pm.response.to.have.status(403);",
+							"});",
+							"",
+							"const json = pm.response.json();",
+							"",
+							"pm.test(\"Error message indicates forbidden\", () => {",
+							"    pm.expect(json.error).to.include('Forbidden');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{EMPLOYER_JWT}}",
+						"description": "Using employer token instead of freelancer"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"outcome\": \"Trying to submit as employer\",\n  \"outcomeType\": \"text\"\n}"
+				},
+				"url": {
+					"raw": "{{BASE_URL}}/applications/{{APP_ID}}/submit",
+					"host": ["{{BASE_URL}}"],
+					"path": ["applications", "{{APP_ID}}", "submit"]
+				},
+				"description": "Test that only the applicant can submit outcome (should fail with 403)"
+			},
+			"response": []
+		},
+		{
+			"name": "Submit - Invalid Status",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Request rejected\", () => {",
+							"    pm.response.to.have.status(400);",
+							"});",
+							"",
+							"const json = pm.response.json();",
+							"",
+							"pm.test(\"Error message about status\", () => {",
+							"    pm.expect(json.error).to.include('status');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{FREELANCER_JWT}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"outcome\": \"Trying to submit when already completed\",\n  \"outcomeType\": \"text\"\n}"
+				},
+				"url": {
+					"raw": "{{BASE_URL}}/applications/{{APP_ID}}/submit",
+					"host": ["{{BASE_URL}}"],
+					"path": ["applications", "{{APP_ID}}", "submit"]
+				},
+				"description": "Test submitting when application status doesn't allow it (e.g., already completed or rejected)"
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Ensure required environment variables exist",
+					"if (!pm.environment.get('BASE_URL')) {",
+					"    pm.environment.set('BASE_URL', 'http://127.0.0.1:3000');",
+					"}",
+					"",
+					"if (!pm.environment.get('FREELANCER_JWT')) {",
+					"    pm.environment.set('FREELANCER_JWT', 'test_freelancer_001');",
+					"}",
+					"",
+					"if (!pm.environment.get('EMPLOYER_JWT')) {",
+					"    pm.environment.set('EMPLOYER_JWT', 'test_employer_001');",
+					"}"
+				]
+			}
+		}
+	]
+}

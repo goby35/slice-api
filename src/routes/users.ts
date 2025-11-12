@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../db/index.js";
 import { users } from "../db/schema.js";
+import { profile } from "console";
 
 // Zod Schemas
 const createUserSchema = z.object({
@@ -39,7 +40,11 @@ usersRouter.get("/", async (c) => {
 // POST /users - Tạo user mới
 usersRouter.post("/", zValidator("json", createUserSchema), async (c) => {
   const data = (c.req as any).valid("json");
-  const [newUser] = await db.insert(users).values(data).returning();
+  let userData = {
+    ...data,
+    profileId: data.profileId.toLowerCase()
+  }
+  const [newUser] = await db.insert(users).values(userData).returning();
   return c.json(newUser, 201);
 });
 
