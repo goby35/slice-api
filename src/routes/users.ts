@@ -50,7 +50,7 @@ usersRouter.post("/", zValidator("json", createUserSchema), async (c) => {
 
 // GET /users/:profileId - Lấy user theo profileId
 usersRouter.get("/:profileId", async (c) => {
-  const profileId = c.req.param("profileId");
+  const profileId = c.req.param("profileId").toLowerCase();
   const user = await db
     .select()
     .from(users)
@@ -66,7 +66,7 @@ usersRouter.put(
   "/:profileId",
   zValidator("json", updateUserSchema),
   async (c) => {
-    const profileId = c.req.param("profileId");
+    const profileId = c.req.param("profileId").toLowerCase();
     const data = (c.req as any).valid("json");
 
     const [updatedUser] = await db
@@ -85,7 +85,7 @@ usersRouter.put(
 
 // DELETE /users/:profileId - Xóa user
 usersRouter.delete("/:profileId", async (c) => {
-  const profileId = c.req.param("profileId");
+  const profileId = c.req.param("profileId").toLowerCase();
 
   const [deletedUser] = await db
     .delete(users)
@@ -104,8 +104,8 @@ usersRouter.post(
   "/:profileId/adjust-points",
   zValidator("json", adjustPointsSchema),
   async (c) => {
-    const profileId = c.req.param("profileId");
-  const { rewardPoints, reputationScore } = (c.req as any).valid("json");
+    const profileId = c.req.param("profileId").toLowerCase();
+    const { rewardPoints, reputationScore } = (c.req as any).valid("json");
 
     if (rewardPoints === undefined && reputationScore === undefined) {
       return c.json({ error: "At least one point type is required" }, 400);
