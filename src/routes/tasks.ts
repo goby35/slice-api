@@ -1,9 +1,9 @@
 import { zValidator } from "@hono/zod-validator";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../db/index.js";
-import { tasks, taskChecklists, taskApplications } from "../db/schema.js";
+import { tasks, taskChecklists, taskApplications, users } from "../db/schema.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
 import { notifyTaskCreated } from "../services/notificationService.js";
 
@@ -51,7 +51,16 @@ const tasksRouter = new Hono();
 // GET /tasks - Lấy danh sách tất cả các task
 tasksRouter.get("/", async (c) => {
   const allTasks = await db.select().from(tasks);
-  return c.json(allTasks);
+  let allTasksWithApps = [];
+  for (const task of allTasks) {
+    const applications = await db
+      .select()
+      .from(taskApplications)
+      .where(eq(taskApplications.taskId, task.id));
+    allTasksWithApps.push({ ...task, applications });
+  }
+
+  return c.json(allTasksWithApps);
 });
 
 // POST /tasks - Tạo một task mới
@@ -120,8 +129,55 @@ tasksRouter.get("/:id", async (c) => {
   return c.json({ ...task[0], checklist });
 });
 
+
+//PUT /:id/complete - Cập nhật trạng thái 'completed' cho task + cập nhật điểm thưởng cho freelancer
+// PUT /tasks/:id/complete
+tasksRouter.put("/complete/:id", authMiddleware, async (c) => {
+  const id = c.req.param("id"); 
+  console.log(`[DEBUG] PUT /tasks/${id}/complete called`);
+  if (!id) return c.json({ error: "Invalid ID" }, 400);
+
+  const [task] = await db.select().from(tasks).where(eq(tasks.id, id));
+  if (!task) return c.json({ error: "Task not found" }, 404);
+
+  // Ngăn cộng lại điểm nếu đã completed rồi
+  if (task.status === "completed") {
+    return c.json({ message: "Task already completed", task });
+  }
+
+  const [updatedTask] = await db
+    .update(tasks)
+    .set({ status: "completed" })
+    .where(eq(tasks.id, id))
+    .returning();
+
+  if (!updatedTask) return c.json({ error: "Task not found" }, 404);
+
+  try {
+    const freelancerId = updatedTask.freelancerProfileId || task.freelancerProfileId;
+    const rewardToAdd = updatedTask.rewardPoints ?? task.rewardPoints ?? 0;
+
+    if (freelancerId && rewardToAdd > 0) {
+      const [updatedUser] = await db
+        .update(users)
+        .set({ rewardPoints: sql`${users.rewardPoints} + ${rewardToAdd}` })
+        .where(eq(users.profileId, freelancerId))
+        .returning();
+
+      return c.json({ message: "Task completed, reward added", task: updatedTask, user: updatedUser });
+    }
+
+    return c.json({ message: "Task completed (no reward added)", task: updatedTask });
+  } catch (err: any) {
+    console.error("Error updating user reward points:", err);
+    return c.json({ message: "Task completed but failed to update user points", task: updatedTask });
+  }
+});
+
+
+
 // PUT /tasks/:id - Cập nhật một task
-tasksRouter.put("/:id", zValidator("json", updateTaskSchema), async (c) => {
+tasksRouter.put("/:id", authMiddleware, zValidator("json", updateTaskSchema), async (c) => {
   const id = c.req.param("id");
   if (!id) {
     return c.json({ error: "Invalid ID" }, 400);
@@ -141,9 +197,13 @@ tasksRouter.put("/:id", zValidator("json", updateTaskSchema), async (c) => {
   if (!updatedTask) {
     return c.json({ error: "Task not found" }, 404);
   }
-
   return c.json(updatedTask);
 });
+
+
+  
+
+
 
 // PATCH /tasks/:id - Xóa một task (hoặc hủy task)
 tasksRouter.patch("/:id", authMiddleware, async (c) => {
@@ -184,7 +244,7 @@ tasksRouter.patch("/:id", authMiddleware, async (c) => {
     applicationsData.forEach(async (application) => {
       await db.update(taskApplications).set({ status: "rejected" }).where(eq(taskApplications.id, application.id));
     });
-    
+
   return c.json({ 
     message: "Task cancelled successfully (has applications)", 
     task: cancelledTask 

@@ -13,8 +13,9 @@ import {
   notifyTaskNeedsRevision,
   notifyTaskApproved,
   notifyRatingReminder,
-  notifyTaskRated
+  notifyTaskRated,
 } from "../services/notificationService.js";
+import { updateReputationScore } from "../services/reputationService.js";
 
 // Zod Schemas
 const applicationStatusSchema = z.enum([
@@ -76,8 +77,8 @@ taskApplicationsRouter.post(
 
       if (!task) return c.json({ error: "Task not found" }, 404);
 
-      // If application is accepted/in_progress -> first submission -> set to in_review
-  if (application.status === "accepted" || application.status === "submitted") {
+      // If application is accepted -> first submission -> set to in_review
+  if (application.status === "accepted") {
         const updateFields: any = {
           outcome: data.outcome,
           outcomeType: data.outcomeType,
@@ -524,6 +525,15 @@ taskApplicationsRouter.post(
         .set({ rating, comment })
         .where(eq(taskApplications.id, id))
         .returning();
+
+      // 2. Tính toán và cập nhật điểm uy tín (reputation)
+      // (Đảm bảo 'completedAt' đã được set khi duyệt task)
+      await updateReputationScore(
+        application.applicantProfileId, // ID của Freelancer
+        rating,
+        application.completedAt || new Date(), // Thời điểm hoàn thành
+        task.deadline // Hạn chót
+      );
 
       // [Thông báo #8] Đánh giá
       await notifyTaskRated(

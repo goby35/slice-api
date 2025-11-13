@@ -6,7 +6,8 @@ import {
   text,
   timestamp,
   varchar,
-  uuid
+  uuid,
+  boolean
 } from "drizzle-orm/pg-core";
 
 export const sliceDB = pgSchema("slice_db");
@@ -22,6 +23,8 @@ export const users = sliceDB.table("users", {
     .$type<string[]>()
 
     .default([]),
+    isWarned: boolean("is_warned").notNull().default(false),
+    isBanned: boolean("is_banned").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at")
     .notNull()
