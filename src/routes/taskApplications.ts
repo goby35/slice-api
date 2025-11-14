@@ -17,6 +17,7 @@ import {
 } from "../services/notificationService.js";
 import { updateReputationScore } from "../services/reputationService.js";
 
+
 // Zod Schemas
 const applicationStatusSchema = z.enum([
   "submitted",
