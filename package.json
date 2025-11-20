@@ -6,6 +6,7 @@
     "dotenv": "^17.2.3",
     "drizzle-kit": "^0.31.6",
     "drizzle-orm": "^0.44.7",
+    "ethers": "^6.15.0",
     "hono": "^4.10.4",
     "hono-rate-limiter": "^0.4.2",
     "jose": "^6.1.0",

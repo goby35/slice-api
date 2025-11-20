@@ -41,6 +41,143 @@ const updateTaskApplicationSchema = z.object({
 
 const taskApplicationsRouter = new Hono();
 
+// POST /applications/:id/accept - Employer accepts application (with on-chain verification) // LASTED UPDATE 
+taskApplicationsRouter.post(
+  "/:id/accept",
+  authMiddleware,
+  async (c) => {
+    try {
+      const id = c.req.param("id");
+      if (!id) return c.json({ error: "Invalid Application ID" }, 400);
+
+      const userPayload = (c as any).get("user") as Record<string, any> | undefined;
+      const profileId = userPayload?.act?.sub || userPayload?.sub;
+      if (!profileId) return c.json({ error: "Unauthorized" }, 401);
+
+      // Get application
+      const [application] = await db
+        .select()
+        .from(taskApplications)
+        .where(eq(taskApplications.id, id));
+
+      if (!application) return c.json({ error: "Application not found" }, 404);
+
+      // Get task
+      const [task] = await db
+        .select()
+        .from(tasks)
+        .where(eq(tasks.id, application.taskId));
+
+      if (!task) return c.json({ error: "Task not found" }, 404);
+
+      // Verify employer
+      if (task.employerProfileId !== profileId) {
+        return c.json({ error: "Forbidden: Only employer can accept application" }, 403);
+      }
+
+      // Check application status
+      if (application.status !== "submitted") {
+        return c.json({ error: "Application must be in 'submitted' status to accept" }, 400);
+      }
+
+      // === CRITICAL: VERIFY ON-CHAIN DEPOSIT ===
+      const { verifyEscrowDeposit } = await import("../services/blockchainService.js");
+      
+      if (!task.externalTaskId) {
+        return c.json({ 
+          error: "Task has no externalTaskId. Cannot verify deposit." 
+        }, 400);
+      }
+
+      // Get freelancer wallet address from users table
+      const [freelancerUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.profileId, application.applicantProfileId));
+
+      if (!freelancerUser) {
+        return c.json({ error: "Freelancer user not found" }, 404);
+      }
+
+      // Verify deposit exists on-chain
+      const verification = await verifyEscrowDeposit(
+        task.externalTaskId,
+        freelancerUser.profileId // Assuming profileId is wallet address; adjust if needed
+      );
+
+      if (!verification.valid) {
+        return c.json({ 
+          error: verification.reason,
+          code: "DEPOSIT_NOT_VERIFIED"
+        }, 400);
+      }
+
+      // All checks passed - accept application
+      const [updatedApplication] = await db
+        .update(taskApplications)
+        .set({ status: "accepted" })
+        .where(eq(taskApplications.id, id))
+        .returning();
+
+      // Update task with freelancer and status
+      await db
+        .update(tasks)
+        .set({
+          freelancerProfileId: application.applicantProfileId,
+          status: "in_progress",
+          onChainTaskId: verification.onChainTaskId,
+          depositedTxHash: verification.escrow.externalTaskId // Store for reference
+        })
+        .where(eq(tasks.id, application.taskId));
+
+      // Notify accepted freelancer
+      await notifyApplicationAccepted(
+        application.applicantProfileId,
+        task.title,
+        task.id,
+        application.id
+      );
+
+      // Reject other applications
+      const otherApplications = await db
+        .select()
+        .from(taskApplications)
+        .where(
+          and(
+            eq(taskApplications.taskId, task.id),
+            ne(taskApplications.id, id)
+          )
+        );
+
+      for (const otherApp of otherApplications) {
+        await db
+          .update(taskApplications)
+          .set({ status: "rejected" })
+          .where(eq(taskApplications.id, otherApp.id));
+
+        await notifyApplicationRejected(
+          otherApp.applicantProfileId,
+          task.title,
+          task.id,
+          otherApp.id
+        );
+      }
+
+      return c.json({
+        message: "Application accepted successfully",
+        application: updatedApplication,
+        onChainTaskId: verification.onChainTaskId
+      }, 200);
+    } catch (error: any) {
+      console.error("Error accepting application:", error);
+      return c.json({ 
+        error: "Failed to accept application",
+        details: error.message 
+      }, 500);
+    }
+  }
+);
+
 // POST /applications/:id/submit - Freelancer submits outcome for an application
 taskApplicationsRouter.post(
   "/:id/submit",
@@ -78,44 +215,44 @@ taskApplicationsRouter.post(
 
       if (!task) return c.json({ error: "Task not found" }, 404);
 
-      // If application is accepted -> first submission -> set to in_review
-  if (application.status === "accepted") {
-        const updateFields: any = {
-          outcome: data.outcome,
-          outcomeType: data.outcomeType,
-          status: "in_review"
-        };
+      // If application is accepted -> submission -> set to in_review
+      if (application.status === "accepted") {
+            const updateFields: any = {
+              outcome: data.outcome,
+              outcomeType: data.outcomeType,
+              status: "in_review"
+            };
 
-        const [updatedApplication] = await db
-          .update(taskApplications)
-          .set(updateFields)
-          .where(eq(taskApplications.id, id))
-          .returning();
+            const [updatedApplication] = await db
+              .update(taskApplications)
+              .set(updateFields)
+              .where(eq(taskApplications.id, id))
+              .returning();
 
-        // Update task status to in_review
-        await db
-          .update(tasks)
-          .set({ status: "in_review" })
-          .where(eq(tasks.id, application.taskId));
+            // Update task status to in_review
+            await db
+              .update(tasks)
+              .set({ status: "in_review" })
+              .where(eq(tasks.id, application.taskId));
 
-        // Notify employer that submission arrived and needs review
-        const [freelancer] = await db
-          .select()
-          .from(users)
-          .where(eq(users.profileId, profileId));
+            // Notify employer that submission arrived and needs review
+            const [freelancer] = await db
+              .select()
+              .from(users)
+              .where(eq(users.profileId, profileId));
 
-        await notifyTaskSubmitted(
-          task.employerProfileId,
-          freelancer?.username || profileId,
-          task.title,
-          task.id,
-          updatedApplication.id
-        );
+            await notifyTaskSubmitted(
+              task.employerProfileId,
+              freelancer?.username || profileId,
+              task.title,
+              task.id,
+              updatedApplication.id
+            );
 
-        return c.json({ message: "Submission received and set to in_review", application: updatedApplication }, 200);
-      }
+            return c.json({ message: "Submission received and set to in_review", application: updatedApplication }, 200);
+          }
 
-      // If application was requested to revise -> this resubmit completes the application
+      // If application was requested to revise -> resubmit and set back to in_review
       if (application.status === "needs_revision") {
         const newCount = (application.submissionCount ?? 0) + 1;
 
@@ -123,8 +260,8 @@ taskApplicationsRouter.post(
           outcome: data.outcome,
           outcomeType: data.outcomeType,
           submissionCount: newCount,
-          status: "completed",
-          completedAt: new Date()
+          status: "in_review", // Change back to in_review instead of completed
+          feedback: null // Clear previous feedback
         };
 
         const [updatedApplication] = await db
@@ -133,13 +270,13 @@ taskApplicationsRouter.post(
           .where(eq(taskApplications.id, id))
           .returning();
 
-        // Update task status to completed
+        // Update task status back to in_review
         await db
           .update(tasks)
-          .set({ status: "completed", freelancerProfileId: application.applicantProfileId })
+          .set({ status: "in_review" })
           .where(eq(tasks.id, application.taskId));
 
-        // Notifications: submission, approved, rating reminder
+        // Notify employer that freelancer resubmitted after revision
         const [freelancer] = await db
           .select()
           .from(users)
@@ -153,21 +290,10 @@ taskApplicationsRouter.post(
           updatedApplication.id
         );
 
-        await notifyTaskApproved(
-          updatedApplication.applicantProfileId,
-          task.title,
-          task.id,
-          updatedApplication.id
-        );
-
-        await notifyRatingReminder(
-          task.employerProfileId,
-          task.title,
-          task.id,
-          updatedApplication.id
-        );
-
-        return c.json({ message: "Resubmission accepted and application completed", application: updatedApplication }, 200);
+        return c.json({ 
+          message: "Resubmission received and set back to in_review. Waiting for employer approval.", 
+          application: updatedApplication 
+        }, 200);
       }
 
       return c.json({ error: "Cannot submit outcome in current application status" }, 400);
@@ -554,54 +680,54 @@ taskApplicationsRouter.post(
 );
 
 // DELETE /applications/:id - Xóa application
-taskApplicationsRouter.delete("/:id", authMiddleware, async (c) => {
-  try {
-    const id = c.req.param("id");
-    if (!id) {
-      return c.json({ error: "Invalid Application ID" }, 400);
-    }
+// taskApplicationsRouter.delete("/:id", authMiddleware, async (c) => {
+//   try {
+//     const id = c.req.param("id");
+//     if (!id) {
+//       return c.json({ error: "Invalid Application ID" }, 400);
+//     }
 
-    const userPayload = (c as any).get("user") as Record<string, any> | undefined;
-    const profileId = userPayload?.act?.sub || userPayload?.sub;
-    if (!profileId) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
+//     const userPayload = (c as any).get("user") as Record<string, any> | undefined;
+//     const profileId = userPayload?.act?.sub || userPayload?.sub;
+//     if (!profileId) {
+//       return c.json({ error: "Unauthorized" }, 401);
+//     }
 
-    // Lấy application
-    const [application] = await db
-      .select()
-      .from(taskApplications)
-      .where(eq(taskApplications.id, id));
+//     // Lấy application
+//     const [application] = await db
+//       .select()
+//       .from(taskApplications)
+//       .where(eq(taskApplications.id, id));
 
-    if (!application) {
-      return c.json({ error: "Application not found" }, 404);
-    }
+//     if (!application) {
+//       return c.json({ error: "Application not found" }, 404);
+//     }
 
-    // Chỉ applicant hoặc employer mới được xóa
-    const [task] = await db
-      .select()
-      .from(tasks)
-      .where(eq(tasks.id, application.taskId));
+//     // Chỉ applicant hoặc employer mới được xóa
+//     const [task] = await db
+//       .select()
+//       .from(tasks)
+//       .where(eq(tasks.id, application.taskId));
 
-    if (!task) {
-      return c.json({ error: "Task not found" }, 404);
-    }
+//     if (!task) {
+//       return c.json({ error: "Task not found" }, 404);
+//     }
 
-    if (
-      application.applicantProfileId !== profileId &&
-      task.employerProfileId !== profileId
-    ) {
-      return c.json({ error: "Forbidden" }, 403);
-    }
+//     if (
+//       application.applicantProfileId !== profileId &&
+//       task.employerProfileId !== profileId
+//     ) {
+//       return c.json({ error: "Forbidden" }, 403);
+//     }
 
-    await db.delete(taskApplications).where(eq(taskApplications.id, id));
+//     await db.delete(taskApplications).where(eq(taskApplications.id, id));
 
-    return c.json({ message: "Application deleted successfully" });
-  } catch (error) {
-    console.error("Error deleting application:", error);
-    return c.json({ error: "Failed to delete application" }, 500);
-  }
-});
+//     return c.json({ message: "Application deleted successfully" });
+//   } catch (error) {
+//     console.error("Error deleting application:", error);
+//     return c.json({ error: "Failed to delete application" }, 500);
+//   }
+// });
 
 export default taskApplicationsRouter;
 

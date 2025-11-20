@@ -8,8 +8,10 @@ import tasksRouter from './routes/tasks.js'
 import usersRouter from './routes/users.js'
 import taskApplicationsRouter from './routes/taskApplications.js'
 import notificationsRouter from './routes/notifications.js'
+import escrowRouter from './routes/escrow.js'
 import { db } from './db/index.js'
 import { tasks } from './db/schema.js'
+import { initBlockchain, startEventListeners } from './services/blockchainService.js'
 
 const app = new Hono()
 
@@ -98,6 +100,7 @@ app.route('/tasks', tasksRouter)
 app.route('/users', usersRouter)
 app.route('/applications', taskApplicationsRouter)
 app.route('/notifications', notificationsRouter)
+app.route('/escrow', escrowRouter)
 
 // Simple root to verify server is running
 app.get('/', (c) => c.text('slice-api running'))
@@ -112,4 +115,13 @@ app.post('/pageview', async (c) => forward(c, `${REAL_HEY_API_URL}/pageview`))
 app.use('/posts', rateLimiter({ requests: 60 }))
 app.use('/posts', authMiddleware)
 app.post('/posts', async (c) => forward(c, `${REAL_HEY_API_URL}/posts`))
+
+// Initialize blockchain service and event listeners
+try {
+  initBlockchain();
+  startEventListeners();
+} catch (error) {
+  console.error('⚠️  Failed to initialize blockchain service:', error);
+}
+
 export default app

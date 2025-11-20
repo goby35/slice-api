@@ -35,6 +35,7 @@ export const users = sliceDB.table("users", {
 // === TASKS ===
 export const tasks = sliceDB.table("tasks", {
   id: uuid("id").primaryKey().defaultRandom(),
+  externalTaskId: varchar("external_task_id", { length: 255 }).unique(), // UUID for blockchain escrow
   employerProfileId: varchar("employer_profile_id", { length: 255 })
     .notNull()
     .references(() => users.profileId, { onDelete: "cascade" }),
@@ -50,6 +51,8 @@ export const tasks = sliceDB.table("tasks", {
     .notNull()
     .default("open")
     .$type<"open" | "in_review" | "in_progress" | "completed" | "cancelled">(),
+  depositedTxHash: varchar("deposited_tx_hash", { length: 66 }), // On-chain deposit tx hash
+  onChainTaskId: varchar("on_chain_task_id", { length: 100 }), // On-chain taskId from contract
   createdAt: timestamp("created_at").notNull().defaultNow(),
   deadline: timestamp("deadline")
 });
@@ -70,7 +73,7 @@ export const taskApplications = sliceDB.table("task_applications", {
   status: varchar("status", { length: 20 })
     .notNull()
     .default("submitted")
-    .$type<"submitted" | "accepted" | "rejected" | "needs_revision" | "completed">(),
+    .$type<"submitted" | "accepted" | "in_review" | "rejected" | "needs_revision" | "completed">(),
   feedback: text("feedback"), // Feedback từ employer khi yêu cầu chỉnh sửa
   rating: integer("rating"), // Đánh giá từ 1-5 sao
   comment: text("comment"), // Comment đánh giá
@@ -122,5 +125,24 @@ export const notifications = sliceDB.table("notifications", {
     { onDelete: "cascade" }
   ),
   isRead: integer("is_read").notNull().default(0), // 0 = false, 1 = true
+  createdAt: timestamp("created_at").notNull().defaultNow()
+});
+
+// === ESCROW TASKS (Blockchain) ===
+export const escrowTasks = sliceDB.table("escrow_tasks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  taskId: varchar("task_id", { length: 100 }).notNull().unique(), // On-chain taskId (starts from 1)
+  externalTaskId: varchar("external_task_id", { length: 255 }).notNull().unique(), // UUID mapped to tasks table
+  employer: varchar("employer", { length: 255 }).notNull(), // Ethereum address
+  freelancer: varchar("freelancer", { length: 255 }).notNull(), // Ethereum address
+  amount: varchar("amount", { length: 100 }).notNull(), // BigNumber as string
+  deadline: integer("deadline").notNull(), // Unix timestamp
+  settled: integer("settled").notNull().default(0), // 0 = false, 1 = true
+  depositedTx: varchar("deposited_tx", { length: 255 }).notNull(),
+  depositedAt: timestamp("deposited_at").notNull().defaultNow(),
+  releasedTx: varchar("released_tx", { length: 255 }),
+  releasedAt: timestamp("released_at"),
+  releaseTo: varchar("release_to", { length: 255 }), // Address who received funds
+  releaseReason: text("release_reason"), // Reason for release
   createdAt: timestamp("created_at").notNull().defaultNow()
 });
